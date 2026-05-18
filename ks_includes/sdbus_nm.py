@@ -93,13 +93,14 @@ class SdbusNm:
             return None
         sdbus.set_default_bus(self.system_bus)
         self.nm = NetworkManager()
-        self.wlan_device = (
-            self.get_wireless_interfaces()[0] if self.get_wireless_interfaces() else None
-        )
+        wireless = self.get_wireless_interfaces()
+        self.wlan_device = wireless[0] if wireless else None
         self.wifi = self.wlan_device is not None
         self.monitor_connection = False
         self.wifi_state = -1
         self.popup = popup_callback
+        if self.wlan_device is None:
+            return
         if self.wlan_device.state == enums.DeviceState.UNMANAGED:
             self.popup(
                 f"{self.wlan_device.interface} is not managed by "

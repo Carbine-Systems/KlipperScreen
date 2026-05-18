@@ -229,7 +229,7 @@ class BasePanel(ScreenPanel):
 
     def get_spoolman_icon_pixbuf(self, color=None):
         if not color:
-            self.get_active_spoolman_color()
+            color = self.get_active_spoolman_color()
         klipperscreendir = pathlib.Path(__file__).parent.resolve().parent
         icon_path = os.path.join(
             klipperscreendir, "styles", self._screen.theme, "images", "spool.svg"
@@ -270,31 +270,28 @@ class BasePanel(ScreenPanel):
         return default_color
 
     def show_heaters(self, show=True):
-        # Avoid rebuilding if already built (prevents flicker when switching panels)
-        current_children_count = len(self.control["temp_box"].get_children())
+        # Cache fingerprinted by device-set; rebuilds only when devices change.
+        def _clear():
+            for child in self.control["temp_box"].get_children():
+                self.control["temp_box"].remove(child)
 
         if self._printer is None or not show:
-            if current_children_count > 0:
-                for child in self.control["temp_box"].get_children():
-                    self.control["temp_box"].remove(child)
+            _clear()
+            self._heaters_signature = None
             return
 
         devices = self._printer.get_temp_devices()
         if not devices:
-            if current_children_count > 0:
-                for child in self.control["temp_box"].get_children():
-                    self.control["temp_box"].remove(child)
+            _clear()
+            self._heaters_signature = None
             return
 
-        if current_children_count > 0 and hasattr(self, "_heaters_built"):
+        signature = tuple(devices)
+        if getattr(self, "_heaters_signature", None) == signature:
             return
 
-        for child in self.control["temp_box"].get_children():
-            self.control["temp_box"].remove(child)
+        _clear()
         try:
-            devices = self._printer.get_temp_devices()
-            if not devices:
-                return
             img_size = self._gtk.img_scale * self.bts
             for device in devices:
                 self.labels[device] = Gtk.Label(ellipsize=Pango.EllipsizeMode.START)
@@ -345,7 +342,7 @@ class BasePanel(ScreenPanel):
                 n += 1
 
             self.control["temp_box"].show_all()
-            self._heaters_built = True
+            self._heaters_signature = signature
         except Exception as e:
             logging.debug(f"Couldn't create heaters box: {e}")
 
