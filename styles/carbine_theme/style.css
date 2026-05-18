@@ -1,0 +1,262 @@
+@define-color color_1 #e2e2e2;
+@define-color color_2 #2196f3;
+@define-color color_3 #fb8c00;
+@define-color color_4 #9E9E9E;
+@define-color color_5 #121212;
+@define-color background-color_2 #1c1c1c;
+@define-color background-color_3 #424242;
+@define-color background-color_4 #252525;
+@define-color background-color_5 #2f5631;
+@define-color background-color_6 #006064;
+@define-color background-color_7 #545454;
+@define-color background-color_8 #006412;
+@define-color background-color_9 #EF6C00;
+@define-color background-color_10 #B71C1C;
+@define-color background-color_12 #f9b274;
+@define-color background-color_13 #CF6679;
+@define-color background-color_14 #090909;
+@define-color border-color_6 #a2a2a2;
+@define-color border-color_7 #282828;
+
+* {
+    color: @color_1;
+    font-family: poppins;
+}
+
+junction,
+list row,
+treeview.view,
+window {
+    background-color: @color_5;
+}
+
+button {
+    background-color: @color_5;
+}
+
+button:active {
+    background-color: @background-color_3;
+}
+
+.button_active {
+    border-color: @background-color_3;
+    border-style: solid;
+    background-color: @background-color_3;
+}
+
+button.color1,
+button.color2,
+button.color3,
+button.color4 {
+    background-color: @background-color_4;
+    border-color: @background-color_4;
+    border-radius: .25em;
+    padding-top: 0.4em;
+}
+
+button.color1:active,
+button.color2:active,
+button.color3:active,
+button.color4:active,
+button.update:active,
+button.invalid:active,
+.dialog button:active {
+    border-style: none;
+    background-color: @background-color_3;
+}
+
+.active image,
+button.update {
+    color: @color_2;
+    background-color: @color_5;
+    border-color: @color_2;
+    border-radius: .5em;
+    border-width: .1em;
+}
+
+button.invalid {
+    color: @color_3;
+    background-color: @color_5;
+    border-color: @color_3;
+    border-radius: .5em;
+    border-width: .1em;
+}
+
+menu,
+menuitem,
+combobox button,
+combobox arrow,
+combobox menuitem {
+    background-color: @background-color_4;
+    border-color: @color_5;
+}
+
+treeview.view check,
+switch {
+    background-color: @background-color_2;
+}
+
+treeview.view check:checked,
+switch:checked {
+    background-color: @background-color_5;
+}
+
+treeview.view check:checked {
+    -gtk-icon-source: url("./styles/material-darker/images/complete.svg");
+}
+
+label {
+    color: @color_1;
+}
+
+trough {
+    background-color: @color_5;
+    color: @color_1;
+}
+
+trough highlight,
+trough progress {
+    background-color: @background-color_5;
+    color: @color_1;
+}
+
+scale-mark {
+    color: @color_1;
+}
+
+scrollbar,
+scrollbar button,
+scrollbar trough {
+    background-color: @color_5;
+}
+
+scrollbar slider {
+    background-color: @background-color_2;
+}
+
+textview .time {
+    color: @color_4;
+}
+
+.active_device {
+    background-color: @background-color_2;
+}
+
+.dialog {
+    border: 0;
+    background-color: @color_5;
+}
+
+.dialog button {
+    background-color: @background-color_4;
+    border-radius: .25em;
+}
+
+
+.dialog-error {
+    border-bottom-color: @background-color_13;
+}
+
+.dialog-warning {
+    border-bottom-color: @background-color_12;
+}
+
+.dialog-info {
+    border-bottom-color: @color_4;
+}
+
+.dialog-default {
+    border-bottom-color: @color_4;
+}
+
+.dialog-secondary {
+     border-bottom-color: @color_2;
+}
+
+.dialog-primary {
+     border-bottom-color: @color_3;
+}
+
+.horizontal_togglebuttons  {
+    border-color: @background-color_7;
+    border-width: .1em;
+    background-color: @background-color_4;
+}
+
+.horizontal_togglebuttons_active {
+    background-color: @background-color_7;
+}
+
+.fan_slider {
+    color: @color_1;
+}
+
+.message_popup {
+    border-bottom-color: @color_1;
+}
+
+.message_popup_echo,
+.message_popup_echo button {
+    background-color: @background-color_8;
+}
+
+.message_popup_warning,
+.message_popup_warning button {
+    background-color: @background-color_9;
+}
+
+.message_popup_error,
+.message_popup_error button {
+    background-color: @background-color_10;
+}
+
+.numpad_key {
+    border-color: @background-color_7;
+    background-color: @background-color_4;
+}
+
+.printing-status {
+    color: @color_1;
+}
+
+.printing-progress-text {
+    color: @color_1;
+}
+
+.printing-status-label {
+    color: @color_4;
+}
+
+.message {
+    border-color: @background-color_10;
+    color: @color_1;
+    background-color: @background-color_10;
+}
+
+.message button {
+    background-color: @color_1;
+    color: @color_5;
+}
+
+.keyboard_pad {
+    background-color: @background-color_14;
+}
+
+/* new styles */
+
+.action_bar {
+    border-right: 1px solid @background-color_3;
+}
+
+.title_bar {
+    border-bottom: 1px solid @background-color_3;
+    padding-bottom: 0.3em;
+    padding-top: 0.3em;
+    padding-left: 0.3em;
+    /* padding-right: 0.5em; */
+}
+
+/* Content padding for all panels */
+.content {
+    padding-top: 0.1em;
+}

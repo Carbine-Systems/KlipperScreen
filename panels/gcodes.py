@@ -42,7 +42,7 @@ class Panel(ScreenPanel):
         self.showing_rename = False
         self.loading = False
         self.cur_directory = "gcodes"
-        self.list_button_size = self._gtk.img_scale * self.bts
+        self.list_button_size = self._gtk.img_scale * self.bts * 2.5
 
         self.headerbox = Gtk.Box(hexpand=True, vexpand=False)
         n = 0
@@ -562,6 +562,7 @@ class Panel(ScreenPanel):
         self.labels["new_name"].set_text(fullpath[7:])
         self.labels["new_name"].grab_focus_without_selecting()
         self.showing_rename = True
+        self.content.show_all()
 
     def _create_rename_box(self, fullpath):
         lbl = Gtk.Label(label=_("Rename/Move:"), halign=Gtk.Align.START, hexpand=False)

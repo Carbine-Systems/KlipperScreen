@@ -1,4 +1,5 @@
 import logging
+import os
 
 import gi
 
@@ -30,14 +31,29 @@ class Panel(MenuPanel):
         stats = self._printer.get_printer_status_data()["printer"]
         if stats["temperature_devices"]["count"] > 0 or stats["extruders"]["count"] > 0:
             self._gtk.reset_temp_color()
+
+        # Filter out some menu items we don't want shown here (icons still available elsewhere)
+        menu_items = items or []
+
+        def _is_afc(item_dict):
+            key = list(item_dict)[0]
+            val = item_dict[key]
+            panel = str(val.get('panel') or '').lower()
+            return key.lower() == 'afc' or panel == 'afc'
+
+        filtered_items = [
+            i for i in menu_items
+            if list(i)[0] not in ("move", "more") and not _is_afc(i)
+        ]
+
         if self._screen.vertical_mode:
             self.main_menu.attach(self.create_left_panel(), 0, 0, 1, 3)
-            self.labels["menu"] = self.arrangeMenuItems(items, 3, True)
+            self.labels["menu"] = self.arrangeMenuItems(filtered_items, 3, True)
             scroll.add(self.labels["menu"])
             self.main_menu.attach(scroll, 0, 3, 1, 2)
         else:
             self.main_menu.attach(self.create_left_panel(), 0, 0, 1, 1)
-            self.labels["menu"] = self.arrangeMenuItems(items, 2, True)
+            self.labels["menu"] = self.arrangeMenuItems(filtered_items, 2, True)
             scroll.add(self.labels["menu"])
             self.main_menu.attach(scroll, 1, 0, 1, 1)
         self.content.add(self.main_menu)
@@ -92,7 +108,9 @@ class Panel(MenuPanel):
             return False
 
         devname = device.split()[1] if len(device.split()) > 1 else device
-        # Support for hiding devices by name
+        # Hide extruder and heater_bed by adding underscore
+        if device.startswith("extruder") or device == "heater_bed":
+            devname = "_" + devname
         if devname.startswith("_"):
             return False
         if devname.lower() in self.hidden_sensors:
@@ -241,11 +259,11 @@ class Panel(MenuPanel):
         self.labels["devices"] = Gtk.Grid(vexpand=False)
         self.labels["devices"].get_style_context().add_class("heater-grid")
 
-        name = Gtk.Label()
-        temp = Gtk.Label(label=_("Temp (°C)"))
+        # name = Gtk.Label()
+        # temp = Gtk.Label(label=_("Temp (°C)"))
 
-        self.labels["devices"].attach(name, 0, 0, 1, 1)
-        self.labels["devices"].attach(temp, 1, 0, 1, 1)
+        # self.labels["devices"].attach(name, 0, 0, 1, 1)
+        # self.labels["devices"].attach(temp, 1, 0, 1, 1)
 
         self.labels["da"] = HeaterGraph(self._screen, self._printer, self._gtk.font_size)
 
@@ -255,6 +273,21 @@ class Panel(MenuPanel):
         scroll.add(self.labels["devices"])
 
         self.left_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+
+        # Optional thumbnail at the top of the left panel
+        # Replace this path with your desired thumbnail image path
+        thumbnail_path = "/home/pi/KlipperScreen/thumbnail.png"
+        if os.path.exists(thumbnail_path):
+            thumbnail = Gtk.Image.new_from_file(thumbnail_path)
+            thumbnail.set_hexpand(True)
+            thumbnail.set_vexpand(False)
+            self.left_panel.add(thumbnail)
+
+            label = Gtk.Label(label="Carbine P500")
+            label.set_halign(Gtk.Align.CENTER)
+            label.set_valign(Gtk.Align.FILL)
+            self.left_panel.add(label)
+
         self.left_panel.add(scroll)
 
         for d in self._printer.get_temp_devices():

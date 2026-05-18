@@ -336,9 +336,9 @@ class KlipperScreenConfig:
                     "name": _("Icon Theme"),
                     "type": "dropdown",
                     "tooltip": _("Changes how the interface looks"),
-                    "value": "z-bolt",
+                    "value": "carbine_theme",
                     "callback": screen.change_theme,
-                    "options": [{"name": "Z-bolt" + " " + _("(default)"), "value": "z-bolt"}],
+                    "options": [{"name": "Carbine" + " " + _("(default)"), "value": "carbine_theme"}],
                 }
             },
             {
@@ -392,7 +392,7 @@ class KlipperScreenConfig:
                     "section": "main",
                     "name": _("Macro shortcut on sidebar"),
                     "type": "binary",
-                    "value": "False",
+                    "value": "True",
                     "callback": screen.toggle_shortcut,
                 }
             },
