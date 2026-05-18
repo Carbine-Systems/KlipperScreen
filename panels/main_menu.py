@@ -17,6 +17,7 @@ class Panel(MenuPanel):
         super().__init__(screen, title, items)
         self.left_panel = None
         self.devices = {}
+        self.devices_skipped = set()
         self.graph_update = None
         self.active_heater = None
         self.h = self.f = 0
@@ -100,6 +101,8 @@ class Panel(MenuPanel):
             self.hide_numpad()
 
     def add_device(self, device):
+        if device in self.devices_skipped:
+            return False
 
         logging.info(f"Adding device: {device}")
 
@@ -112,8 +115,10 @@ class Panel(MenuPanel):
         if device.startswith("extruder") or device == "heater_bed":
             devname = "_" + devname
         if devname.startswith("_"):
+            self.devices_skipped.add(device)
             return False
         if devname.lower() in self.hidden_sensors:
+            self.devices_skipped.add(device)
             return False
 
         if device.startswith("extruder"):
@@ -139,6 +144,7 @@ class Panel(MenuPanel):
             class_name = f"graph_label_fan_{self.f}"
             dev_type = "fan"
         elif self._config.get_main_config().getboolean("only_heaters", False):
+            self.devices_skipped.add(device)
             return False
         else:
             self.h += 1
