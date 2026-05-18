@@ -1,10 +1,11 @@
 import logging
 import os
+import pathlib
 
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import GLib, Gtk
+from gi.repository import GdkPixbuf, GLib, Gtk
 
 from ks_includes.KlippyGtk import find_widget
 from ks_includes.widgets.heatergraph import HeaterGraph
@@ -280,19 +281,34 @@ class Panel(MenuPanel):
 
         self.left_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
-        # Optional thumbnail at the top of the left panel
-        # Replace this path with your desired thumbnail image path
-        thumbnail_path = "/home/pi/KlipperScreen/thumbnail.png"
+        # Optional printer thumbnail at the top of the left panel.
+        # Drop a "thumbnail.png" into the KlipperScreen install dir to use it.
+        # Scaled to ~43% of screen width, preserving aspect ratio.
+        klipperscreendir = pathlib.Path(__file__).parent.resolve().parent
+        thumbnail_path = os.path.join(klipperscreendir, "thumbnail.png")
         if os.path.exists(thumbnail_path):
-            thumbnail = Gtk.Image.new_from_file(thumbnail_path)
-            thumbnail.set_hexpand(True)
-            thumbnail.set_vexpand(False)
-            self.left_panel.add(thumbnail)
+            thumb_max = int(self._screen.width * 0.43)
+            try:
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+                    thumbnail_path, thumb_max, thumb_max, True
+                )
+                thumbnail = Gtk.Image.new_from_pixbuf(pixbuf)
+            except Exception as e:
+                logging.error(f"Failed to load printer thumbnail: {e}")
+                thumbnail = Gtk.Image.new_from_file(thumbnail_path)
+            thumbnail.set_halign(Gtk.Align.CENTER)
 
-            label = Gtk.Label(label="Carbine P500")
+            label = Gtk.Label(label=self._screen.connected_printer or "Carbine P500")
             label.set_halign(Gtk.Align.CENTER)
-            label.set_valign(Gtk.Align.FILL)
-            self.left_panel.add(label)
+
+            # Group thumbnail+label and let it sit vertically centered within
+            # whatever vertical space the left panel has free, biased slightly
+            # downward via top margin.
+            header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+            header.add(thumbnail)
+            header.add(label)
+            header.set_margin_top(int(self._screen.height * 0.08))
+            self.left_panel.pack_start(header, True, False, 0)
 
         self.left_panel.add(scroll)
 
