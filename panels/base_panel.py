@@ -56,7 +56,11 @@ class BasePanel(ScreenPanel):
         self.usage_report = 0
         # Action bar buttons
         self.abscale = self.bts * 1.1
-        self.control["back"] = self._gtk.Button("back", scale=self.abscale)
+        # Back lives in the titlebar — size it to match titlebar icons (not abscale)
+        self.control["back"] = self._gtk.Button("back", scale=self.bts * 0.7)
+        self.control["back"].set_hexpand(False)
+        self.control["back"].set_vexpand(False)
+        self.control["back"].set_valign(Gtk.Align.CENTER)
         self.control["back"].connect("clicked", self.back)
         self.control["back"].set_no_show_all(True)
         self.control["home"] = self._gtk.Button("main", scale=self.abscale)
@@ -110,7 +114,6 @@ class BasePanel(ScreenPanel):
             self.action_bar.set_vexpand(True)
         self.action_bar.get_style_context().add_class("action_bar")
         self.action_bar.set_size_request(self._gtk.action_bar_width, self._gtk.action_bar_height)
-        self.action_bar.add(self.control["back"])
         self.action_bar.add(self.control["home"])
         self.action_bar.add(self.control["move"])
         self.action_bar.add(self.control["afc"])
@@ -163,6 +166,7 @@ class BasePanel(ScreenPanel):
 
         self.titlebar = Gtk.Box(spacing=5, valign=Gtk.Align.CENTER)
         self.titlebar.get_style_context().add_class("title_bar")
+        self.titlebar.pack_start(self.control["back"], False, False, 0)
         self.titlebar.add(self.control["temp_box"])
         self.titlebar.add(self.titlelbl)
         self.titlebar.add(self.control["wifi_box"])
@@ -394,8 +398,7 @@ class BasePanel(ScreenPanel):
         printer_select = "printer_select" not in self._screen._cur_panels
 
         if "splash_screen" in self._screen._cur_panels:
-            # Splash: only back, home, shutdown visible
-            self.control["back"].show()
+            # Splash: minimal UI — only home + shutdown
             self.control["home"].show()
             self.control["shutdown"].show()
             self.control["move"].hide()
@@ -403,7 +406,6 @@ class BasePanel(ScreenPanel):
             self.control["more"].hide()
             self.show_heaters(False)
         else:
-            self.control["back"].hide()
             self.control["move"].show()
             self.control["afc"].show()
             self.control["more"].show()
@@ -413,8 +415,11 @@ class BasePanel(ScreenPanel):
             self.show_heaters(connected and printer_select)
             self.show_printer_select(len(self._config.get_printers()) > 1)
 
-        for control in ("back", "home"):
-            self.set_control_sensitive(len(self._screen._cur_panels) > 1, control=control)
+        # Back is visible only when there's a previous panel to return to
+        can_go_back = len(self._screen._cur_panels) > 1
+        self.control["back"].set_visible(can_go_back)
+        self.set_control_sensitive(can_go_back, control="back")
+        self.set_control_sensitive(can_go_back, control="home")
 
         # Set sensitivity for move and more buttons based on current panel
         self.set_control_sensitive(self._screen._cur_panels[-1] != "move", control='move')
