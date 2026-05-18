@@ -116,7 +116,6 @@ class BasePanel(ScreenPanel):
         self.action_bar.add(self.control["afc"])
         self.action_bar.add(self.control["more"])
         self.action_bar.add(self.control["printer_select"])
-        self.action_bar.add(self.control["shortcut"])
         self.action_bar.add(self.control["estop"])
         self.action_bar.add(self.control["shutdown"])
         self.show_printer_select(len(self._config.get_printers()) > 1)
