@@ -56,13 +56,14 @@ class BasePanel(ScreenPanel):
         self.usage_report = 0
         # Action bar buttons
         self.abscale = self.bts * 1.1
-        # Back lives in the titlebar — size it to match titlebar icons (not abscale)
+        # Back lives in the titlebar — size to match titlebar icons (not abscale).
+        # Always rendered (slot reserved); visibility toggled by opacity in add_content
+        # so the titlebar height stays constant.
         self.control["back"] = self._gtk.Button("back", scale=self.bts * 0.7)
         self.control["back"].set_hexpand(False)
         self.control["back"].set_vexpand(False)
         self.control["back"].set_valign(Gtk.Align.CENTER)
         self.control["back"].connect("clicked", self.back)
-        self.control["back"].set_no_show_all(True)
         self.control["home"] = self._gtk.Button("main", scale=self.abscale)
         self.control["home"].connect("clicked", self._screen._menu_go_back, True)
         for control in self.control:
@@ -166,6 +167,12 @@ class BasePanel(ScreenPanel):
 
         self.titlebar = Gtk.Box(spacing=5, valign=Gtk.Align.CENTER)
         self.titlebar.get_style_context().add_class("title_bar")
+        # Lock the titlebar's min-height so it doesn't shrink when the back
+        # button is hidden on the top-level panel. Sized to match the back
+        # button's natural height (icon * Button factory's 1.4x label-less
+        # multiplier, plus a small chrome allowance).
+        back_h = int(self._gtk.img_scale * self.bts * 0.7 * 1.4 * 1.3)
+        self.titlebar.set_size_request(-1, back_h)
         self.titlebar.pack_start(self.control["back"], False, False, 0)
         self.titlebar.add(self.control["temp_box"])
         self.titlebar.add(self.titlelbl)
@@ -415,7 +422,9 @@ class BasePanel(ScreenPanel):
             self.show_heaters(connected and printer_select)
             self.show_printer_select(len(self._config.get_printers()) > 1)
 
-        # Back is visible only when there's a previous panel to return to
+        # Back is visible only when there's a previous panel to return to.
+        # Titlebar has a locked min-height (set in __init__) so removing
+        # the back button doesn't shrink the bar.
         can_go_back = len(self._screen._cur_panels) > 1
         self.control["back"].set_visible(can_go_back)
         self.set_control_sensitive(can_go_back, control="back")
