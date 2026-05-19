@@ -13,7 +13,7 @@ class Panel(ScreenPanel):
     # Subclasses can override these to filter the macro list.
     # Matching is case-insensitive substring against the macro name.
     INCLUDE_KEYWORDS = ()  # empty = show all (modulo EXCLUDE_KEYWORDS)
-    EXCLUDE_KEYWORDS = ("KTAMV",)
+    EXCLUDE_KEYWORDS = ()
 
     def __init__(self, screen, title):
         title = title or _("Macros")
