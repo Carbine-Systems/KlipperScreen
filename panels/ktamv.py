@@ -29,12 +29,9 @@ class Panel(ScreenPanel):
         self.active_tool = None
         self.tool_buttons = {}
 
-        # Left/top: embedded camera preview. Right/bottom: tool select + actions.
-        if self._screen.vertical_mode:
-            main = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        else:
-            main = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
-
+        # Camera fills the left/top, fixed-width controls anchor right/bottom.
+        # Gtk.Grid distributes space by hexpand/vexpand more predictably than
+        # a Box with set_size_request hints.
         self.drawing_area = Gtk.DrawingArea()
         self.drawing_area.set_double_buffered(False)
         self.drawing_area.set_hexpand(True)
@@ -46,6 +43,8 @@ class Panel(ScreenPanel):
         cam_frame.set_vexpand(True)
 
         controls = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        controls.set_hexpand(False)
+        controls.set_vexpand(True)
 
         # Tool selector — fires T0 / T1 so subsequent action buttons act on it
         tool_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
@@ -66,19 +65,21 @@ class Panel(ScreenPanel):
             btn.connect("clicked", self._send_macro, gcode)
             controls.pack_start(btn, True, True, 0)
 
-        controls_scroll = self._gtk.ScrolledWindow()
-        controls_scroll.add(controls)
+        # Lock controls width to ~25% of the content area
+        content_width = self._screen.width - self._gtk.action_bar_width
+        controls_width = int(content_width * 0.25)
+        controls.set_size_request(controls_width, -1)
 
-        # 60/40 split horizontally (cam:controls); 50/50 vertically
         if self._screen.vertical_mode:
-            cam_frame.set_size_request(-1, int(self._screen.height * 0.5))
+            grid = Gtk.Grid(row_spacing=5)
+            grid.attach(cam_frame, 0, 0, 1, 1)
+            grid.attach(controls, 0, 1, 1, 1)
         else:
-            cam_frame.set_size_request(int(self._screen.width * 0.6), -1)
-            controls_scroll.set_size_request(int(self._screen.width * 0.35), -1)
+            grid = Gtk.Grid(column_spacing=5)
+            grid.attach(cam_frame, 0, 0, 1, 1)
+            grid.attach(controls, 1, 0, 1, 1)
 
-        main.pack_start(cam_frame, True, True, 0)
-        main.pack_start(controls_scroll, False, False, 0)
-        self.content.add(main)
+        self.content.add(grid)
         self.content.show_all()
 
     def activate(self):
