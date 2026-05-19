@@ -282,12 +282,25 @@ class Panel(MenuPanel):
         self.left_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
         # Optional printer thumbnail at the top of the left panel.
-        # Drop a "thumbnail.png" into the KlipperScreen install dir to use it.
-        # Scaled to ~43% of screen width, preserving aspect ratio.
+        # Config (KlipperScreen.conf [main]):
+        #   printer_thumbnail = /abs/path/thumb.png   (default: <install>/thumbnail.png)
+        #   printer_display_name = Carbine P500       (default: connected_printer)
+        main_cfg = self._config.get_main_config()
         klipperscreendir = pathlib.Path(__file__).parent.resolve().parent
-        thumbnail_path = os.path.join(klipperscreendir, "thumbnail.png")
+        thumbnail_path = main_cfg.get(
+            "printer_thumbnail", os.path.join(klipperscreendir, "thumbnail.png")
+        )
+        display_name = (
+            main_cfg.get("printer_display_name", "")
+            or self._screen.connected_printer
+            or "Carbine P500"
+        )
         if os.path.exists(thumbnail_path):
-            thumb_max = int(self._screen.width * 0.43)
+            # Size in em so it scales across displays/DPI; capped at half the
+            # content area so it can never crowd out the heater list.
+            em = self._gtk.font_size
+            thumb_max = int(min(em * 17, self._gtk.content_width * 0.5,
+                                self._gtk.content_height * 0.6))
             try:
                 pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
                     thumbnail_path, thumb_max, thumb_max, True
@@ -298,16 +311,13 @@ class Panel(MenuPanel):
                 thumbnail = Gtk.Image.new_from_file(thumbnail_path)
             thumbnail.set_halign(Gtk.Align.CENTER)
 
-            label = Gtk.Label(label=self._screen.connected_printer or "Carbine P500")
+            label = Gtk.Label(label=display_name)
             label.set_halign(Gtk.Align.CENTER)
 
-            # Group thumbnail+label and let it sit vertically centered within
-            # whatever vertical space the left panel has free, biased slightly
-            # downward via top margin.
             header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
             header.add(thumbnail)
             header.add(label)
-            header.set_margin_top(int(self._screen.height * 0.08))
+            header.set_margin_top(int(em * 2))
             self.left_panel.pack_start(header, True, False, 0)
 
         self.left_panel.add(scroll)
@@ -341,9 +351,13 @@ class Panel(MenuPanel):
         if action != "notify_status_update":
             return
         for x in self._printer.get_temp_devices():
-            if x in data:
-                if x not in self.devices:
-                    self.add_device(x)
+            if x not in data:
+                continue
+            # Skip the per-tick add_device call for devices we've already
+            # decided to hide (extruders / heater_bed / hidden_sensors).
+            if x not in self.devices and x not in self.devices_skipped:
+                self.add_device(x)
+            if x in self.devices:
                 self.update_temp(
                     x,
                     self._printer.get_stat(x, "temperature"),

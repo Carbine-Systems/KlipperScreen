@@ -5,7 +5,7 @@ import gi
 import mpv
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import GLib, Gtk
+from gi.repository import GLib, Gtk, Pango
 
 from ks_includes.screen_panel import ScreenPanel
 
@@ -20,6 +20,9 @@ ACTION_BUTTONS = [
     (_("Show Last"), "PRINT_OFFSET_KTAMV"),
 ]
 
+# Retry budget for the realize race on first activate (idle_add ticks)
+_MAX_REALIZE_RETRIES = 30
+
 
 class Panel(ScreenPanel):
     def __init__(self, screen, title):
@@ -28,25 +31,41 @@ class Panel(ScreenPanel):
         self.mpv = None
         self.active_tool = None
         self.tool_buttons = {}
+        self._realize_retries = 0
 
-        # Camera fills the left/top, fixed-width controls anchor right/bottom.
-        # Gtk.Grid distributes space by hexpand/vexpand more predictably than
-        # a Box with set_size_request hints.
+        # Camera DrawingArea + Stack so we can swap a "no nozzle cam" placeholder
+        # inline (instead of nagging with a popup every visit).
         self.drawing_area = Gtk.DrawingArea()
         self.drawing_area.set_double_buffered(False)
         self.drawing_area.set_hexpand(True)
         self.drawing_area.set_vexpand(True)
 
+        self.placeholder = Gtk.Label(
+            label=_("No camera named 'nozzle' is configured.\n"
+                    "Add a [webcam nozzle] block in moonraker.conf."),
+            justify=Gtk.Justification.CENTER,
+            wrap=True,
+            wrap_mode=Pango.WrapMode.WORD,
+            hexpand=True,
+            vexpand=True,
+        )
+
+        self.cam_stack = Gtk.Stack()
+        self.cam_stack.add_named(self.drawing_area, "video")
+        self.cam_stack.add_named(self.placeholder, "placeholder")
+        self.cam_stack.set_hexpand(True)
+        self.cam_stack.set_vexpand(True)
+
         cam_frame = Gtk.Frame()
-        cam_frame.add(self.drawing_area)
+        cam_frame.add(self.cam_stack)
         cam_frame.set_hexpand(True)
         cam_frame.set_vexpand(True)
 
+        # Controls column — tool selector + action buttons
         controls = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
         controls.set_hexpand(False)
         controls.set_vexpand(True)
 
-        # Tool selector — fires T0 / T1 so subsequent action buttons act on it
         tool_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
         for idx, label in ((0, "T0"), (1, "T1")):
             btn = self._gtk.Button(label=label, style=f"color{idx + 1}")
@@ -57,7 +76,6 @@ class Panel(ScreenPanel):
             tool_row.pack_start(btn, True, True, 0)
         controls.pack_start(tool_row, False, False, 0)
 
-        # Action buttons
         for i, (label, gcode) in enumerate(ACTION_BUTTONS):
             btn = self._gtk.Button(label=label, style=f"color{(i % 4) + 1}")
             btn.set_hexpand(True)
@@ -65,10 +83,9 @@ class Panel(ScreenPanel):
             btn.connect("clicked", self._send_macro, gcode)
             controls.pack_start(btn, True, True, 0)
 
-        # Lock controls width to ~25% of the content area
-        content_width = self._screen.width - self._gtk.action_bar_width
-        controls_width = int(content_width * 0.25)
-        controls.set_size_request(controls_width, -1)
+        # Controls width: 14em ≈ 25% of content on 1280-wide screens, but
+        # scales with font_size for other displays / DPI.
+        controls.set_size_request(int(self._gtk.font_size * 14), -1)
 
         if self._screen.vertical_mode:
             grid = Gtk.Grid(row_spacing=5)
@@ -83,17 +100,30 @@ class Panel(ScreenPanel):
         self.content.show_all()
 
     def activate(self):
-        # Defer mpv attach so the DrawingArea is realized with a valid XID
+        self._realize_retries = 0
         GLib.idle_add(self._start_stream)
-        # Sync tool highlight with whatever Klipper says is active
-        current = self._printer.get_stat("toolhead", "extruder") if self._printer else None
+        # Sync tool highlight from current Klipper state
+        self._sync_tool_from_printer()
+
+    def deactivate(self):
+        self._stop_stream()
+
+    def process_update(self, action, data):
+        # Keep T0/T1 highlight live when tool changes happen from elsewhere
+        if action != "notify_status_update" or not data:
+            return
+        toolhead = data.get("toolhead") if isinstance(data, dict) else None
+        if isinstance(toolhead, dict) and "extruder" in toolhead:
+            self._sync_tool_from_printer()
+
+    def _sync_tool_from_printer(self):
+        if not self._printer:
+            return
+        current = self._printer.get_stat("toolhead", "extruder")
         if current == "extruder":
             self._highlight_tool(0)
         elif current == "extruder1":
             self._highlight_tool(1)
-
-    def deactivate(self):
-        self._stop_stream()
 
     def _find_nozzle_cam(self):
         """Find a camera whose name contains 'nozzle' (case-insensitive)."""
@@ -109,11 +139,24 @@ class Panel(ScreenPanel):
     def _start_stream(self):
         cam = self._find_nozzle_cam()
         if cam is None:
-            self._screen.show_popup_message(
-                _("No camera named 'nozzle' is configured in Moonraker. "
-                  "Add a [webcam nozzle] block pointing at port 8081.")
-            )
+            # Inline placeholder — no popup nag, no retry needed
+            self.cam_stack.set_visible_child_name("placeholder")
             return False
+
+        self.cam_stack.set_visible_child_name("video")
+
+        # Retry the realize race a few times before giving up. The DrawingArea
+        # may not have a window yet on first activate.
+        window = self.drawing_area.get_window()
+        if window is None:
+            self._realize_retries += 1
+            if self._realize_retries >= _MAX_REALIZE_RETRIES:
+                logging.warning("kTAMV: DrawingArea never realized; stream not started")
+                return False
+            # Try again on the next idle tick
+            GLib.timeout_add(50, self._start_stream)
+            return False
+        xid = window.get_xid()
 
         url = cam["stream_url"]
         if url.startswith("/"):
@@ -122,27 +165,32 @@ class Panel(ScreenPanel):
         if "/webrtc" in url:
             url = url.replace("/webrtc", "/stream")
 
-        self.drawing_area.realize()
-        window = self.drawing_area.get_window()
-        if window is None:
-            logging.warning("kTAMV panel: drawing area not realized yet")
-            return False
-        xid = window.get_xid()
+        # Apply per-cam flip/rotation — upward nozzle cams are typically mirrored
+        vf_list = []
+        if cam.get("flip_horizontal"):
+            vf_list.append("hflip")
+        if cam.get("flip_vertical"):
+            vf_list.append("vflip")
+        if cam.get("rotation"):
+            vf_list.append(f"rotate:{cam['rotation'] * 3.14159 / 180}")
 
         if self.mpv:
-            self.mpv.terminate()
+            with suppress(Exception):
+                self.mpv.terminate()
         self.mpv = mpv.MPV(
             wid=str(xid),
             log_handler=self._mpv_log,
             vo="x11,xv,wlshm,gpu",
             keep_open="yes",
         )
+        if vf_list:
+            self.mpv.vf = ",".join(vf_list)
         with suppress(Exception):
             self.mpv.profile = "low-latency"
         self.mpv.untimed = True
         self.mpv.audio = "no"
 
-        logging.debug(f"kTAMV cam URL: {url}")
+        logging.debug(f"kTAMV cam URL: {url} vf={vf_list}")
         self.mpv.play(url)
         return False
 
@@ -157,6 +205,8 @@ class Panel(ScreenPanel):
         self._highlight_tool(tool_idx)
 
     def _highlight_tool(self, tool_idx):
+        if self.active_tool == tool_idx:
+            return
         self.active_tool = tool_idx
         for idx, btn in self.tool_buttons.items():
             ctx = btn.get_style_context()

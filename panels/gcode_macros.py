@@ -189,10 +189,15 @@ class Panel(ScreenPanel):
         return False
 
     def _macro_matches_filter(self, macro):
+        # Hook for subclasses (e.g., feature-specific panels). The base Macros
+        # panel uses no filters, so it shows everything; subclasses can set
+        # INCLUDE_KEYWORDS or EXCLUDE_KEYWORDS.
         name = macro.upper()
-        if self.INCLUDE_KEYWORDS and not any(k in name for k in self.INCLUDE_KEYWORDS):
+        includes = tuple(k.upper() for k in self.INCLUDE_KEYWORDS)
+        excludes = tuple(k.upper() for k in self.EXCLUDE_KEYWORDS)
+        if includes and not any(k in name for k in includes):
             return False
-        if any(k in name for k in self.EXCLUDE_KEYWORDS):
+        if any(k in name for k in excludes):
             return False
         return True
 

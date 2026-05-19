@@ -167,12 +167,10 @@ class BasePanel(ScreenPanel):
 
         self.titlebar = Gtk.Box(spacing=5, valign=Gtk.Align.CENTER)
         self.titlebar.get_style_context().add_class("title_bar")
-        # Lock the titlebar's min-height so it doesn't shrink when the back
-        # button is hidden on the top-level panel. Sized to match the back
-        # button's natural height (icon * Button factory's 1.4x label-less
-        # multiplier, plus a small chrome allowance).
-        back_h = int(self._gtk.img_scale * self.bts * 0.7 * 1.4 * 1.3)
-        self.titlebar.set_size_request(-1, back_h)
+        # Lock the titlebar's min-height to the precomputed value from
+        # KlippyGtk so it doesn't shrink when the back button hides. This
+        # scales with font_size automatically (titlebar_height = 2 * em).
+        self.titlebar.set_size_request(-1, int(self._gtk.titlebar_height))
         self.titlebar.pack_start(self.control["back"], False, False, 0)
         self.titlebar.add(self.control["temp_box"])
         self.titlebar.add(self.titlelbl)
@@ -297,7 +295,14 @@ class BasePanel(ScreenPanel):
             self._heaters_signature = None
             return
 
-        signature = tuple(devices)
+        # Include titlebar config + active extruder so a printer.cfg reload or
+        # tool change rebuilds the bar even if the device set is the same.
+        signature = (
+            tuple(devices),
+            tuple(self.titlebar_items),
+            self.titlebar_name_type,
+            self._printer.get_stat("toolhead", "extruder"),
+        )
         if getattr(self, "_heaters_signature", None) == signature:
             return
 
@@ -388,7 +393,8 @@ class BasePanel(ScreenPanel):
         if self.battery_update is None:
             self.battery_update = GLib.timeout_add_seconds(60, self.battery_percentage)
         if self.wifi_update is None:
-            self.wifi_update = GLib.timeout_add_seconds(5, self.wifi_status)
+            # 20s — get_networks() decodes every AP per call, 5s was wasteful
+            self.wifi_update = GLib.timeout_add_seconds(20, self.wifi_status)
 
     def set_spoolman_refresh(self):
         if self.spoolman_update is None:
@@ -676,24 +682,23 @@ class BasePanel(ScreenPanel):
             return self.wifi_icons['weak']
 
     def wifi_status(self):
-        """Update WiFi status indicator"""
+        """Update WiFi status indicator. Return True to keep the GLib timer
+        running. Only return False when there's no point continuing (no
+        WiFi hardware at all)."""
+        # No backend or no hardware → stop polling permanently
         if not sdbus_nm_available or self.sdbus_nm is None:
-            self.control['wifi_box'].hide()
+            self.control["wifi_box"].hide()
+            return False
+        if not self.sdbus_nm.wifi:
+            self.control["wifi_box"].hide()
             return False
 
         try:
-            # Check if WiFi is available
-            if not self.sdbus_nm.wifi:
-                self.control['wifi_box'].hide()
-                return False
-
-            # Check if WiFi is enabled
             if not self.sdbus_nm.is_wifi_enabled():
-                self.labels['wifi_icon'].set_from_pixbuf(self.wifi_icons['weak'])
-                self.control['wifi_box'].show()
+                self.labels["wifi_icon"].set_from_pixbuf(self.wifi_icons["weak"])
+                self.control["wifi_box"].show()
                 return True
 
-            # Get connected network signal strength
             try:
                 connected_bssid = self.sdbus_nm.get_connected_bssid()
             except (AttributeError, TypeError):
@@ -703,25 +708,24 @@ class BasePanel(ScreenPanel):
                 try:
                     networks = self.sdbus_nm.get_networks()
                     connected_network = next(
-                        (net for net in networks if net.get('BSSID') == connected_bssid),
-                        None
+                        (net for net in networks if net.get("BSSID") == connected_bssid),
+                        None,
                     )
-                    if connected_network and 'signal_level' in connected_network:
-                        signal = connected_network['signal_level']
-                        self.labels['wifi_icon'].set_from_pixbuf(self.get_wifi_icon(signal))
-                        self.control['wifi_box'].show()
+                    if connected_network and "signal_level" in connected_network:
+                        signal = connected_network["signal_level"]
+                        self.labels["wifi_icon"].set_from_pixbuf(self.get_wifi_icon(signal))
+                        self.control["wifi_box"].show()
                         return True
                 except Exception as e:
                     logging.debug(f"Error getting network info: {e}")
 
-            # WiFi enabled but not connected
-            self.labels['wifi_icon'].set_from_pixbuf(self.wifi_icons['unknown'])
-            self.control['wifi_box'].show()
-            return True
+            self.labels["wifi_icon"].set_from_pixbuf(self.wifi_icons["unknown"])
+            self.control["wifi_box"].show()
         except Exception as e:
+            # Transient error — keep the timer alive so we can recover later
             logging.debug(f"Error checking WiFi status: {e}")
-            self.control['wifi_box'].hide()
-            return False
+            self.labels["wifi_icon"].set_from_pixbuf(self.wifi_icons["unknown"])
+        return True
 
     def set_ks_printer_cfg(self, printer):
         ScreenPanel.ks_printer_cfg = self._config.get_printer_config(printer)
