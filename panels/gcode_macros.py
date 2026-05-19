@@ -10,6 +10,11 @@ from ks_includes.screen_panel import ScreenPanel
 
 
 class Panel(ScreenPanel):
+    # Subclasses can override these to filter the macro list.
+    # Matching is case-insensitive substring against the macro name.
+    INCLUDE_KEYWORDS = ()  # empty = show all (modulo EXCLUDE_KEYWORDS)
+    EXCLUDE_KEYWORDS = ("KTAMV",)
+
     def __init__(self, screen, title):
         title = title or _("Macros")
         super().__init__(screen, title)
@@ -183,8 +188,18 @@ class Panel(ScreenPanel):
         self.load_gcode_macros()
         return False
 
+    def _macro_matches_filter(self, macro):
+        name = macro.upper()
+        if self.INCLUDE_KEYWORDS and not any(k in name for k in self.INCLUDE_KEYWORDS):
+            return False
+        if any(k in name for k in self.EXCLUDE_KEYWORDS):
+            return False
+        return True
+
     def load_gcode_macros(self):
         for macro in self._printer.get_gcode_macros():
+            if not self._macro_matches_filter(macro):
+                continue
             self.options[macro] = {
                 "name": macro,
                 "section": f"displayed_macros {self._screen.connected_printer}",
